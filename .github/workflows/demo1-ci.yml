@@ -11,4 +11,4 @@ jobs:
     uses: ./.github/workflows/demo1-reusable-build.yml
     with:
       node-version: "20"
-      run-lint: false
+      run-lint: true
