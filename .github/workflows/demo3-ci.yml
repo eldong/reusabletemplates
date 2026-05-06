@@ -1,7 +1,5 @@
 ####################################################################
-# Demo 3 — Consumer: calls the org-level reusable workflow
-# In a real org this would be: uses: my-org/.github/.github/workflows/node-ci.yml@main
-# Here we simulate locally.
+# Demo 3 — Consumer: calls the reusable workflow from eldong/.github
 ####################################################################
 name: "Demo 3: CI (org consumer)"
 
@@ -10,7 +8,7 @@ on:
 
 jobs:
   ci:
-    uses: eldong/.github/workflows/demo3-reusable-ci.yml@main
+    uses: eldong/.github/.github/workflows/demo3-reusable-ci.yml@main
     with:
       node-version: "20"
       enable-coverage: true
