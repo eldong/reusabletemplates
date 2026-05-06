@@ -1,7 +1,7 @@
 # GitHub Actions Reusable Workflows — Workshop Guide
 
 > **Audience:** Developers with basic GitHub Actions knowledge but limited experience with reusable workflows.
-> **Format:** 5 progressive demos in a single repo, all triggered on-demand via `workflow_dispatch`.
+> **Format:** 6 progressive demos in a single repo, all triggered on-demand via `workflow_dispatch`.
 
 ---
 
@@ -389,13 +389,115 @@ Your CI pipeline reinstalls dependencies and rebuilds from scratch on every run 
 
 ---
 
+## Demo 6 — Composite Actions (Step-Level Reuse)
+
+### Scenario
+You have a group of steps — setup Node, install deps, build, verify output — that you repeat across multiple jobs in the same workflow. A reusable workflow is overkill (you don't need a separate job/runner). You want to bundle steps together and call them as a single `uses:` at the **step level**.
+
+### Concepts demonstrated
+- **Composite actions** (`runs: using: "composite"`) — step-level reuse vs. job-level
+- Composite action **inputs and outputs**
+- Local action path (`uses: ./.github/actions/<name>`)
+- Explicit `shell:` requirement in composite steps
+- How composite steps expand inline in the caller's job logs
+
+### File structure
+```
+.github/
+├── actions/
+│   └── setup-build/
+│       └── action.yml              ← the composite action
+└── workflows/
+    └── demo6-composite-action.yml  ← caller workflow
+```
+
+### Key YAML — composite action (`action.yml`)
+```yaml
+name: "Setup, Build & Report"
+description: "Sets up Node, installs, builds, and verifies output"
+
+inputs:
+  node-version:
+    required: false
+    default: "20"
+
+outputs:
+  build-time:
+    description: "How long the build took"
+    value: ${{ steps.timer.outputs.duration }}
+
+runs:
+  using: "composite"               # ← this makes it a composite action
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install dependencies
+      shell: bash                   # ← required for every run step!
+      run: npm install
+
+    - name: Build (timed)
+      id: timer
+      shell: bash
+      run: |
+        START=$(date +%s)
+        npm run build
+        DURATION=$(( $(date +%s) - START ))
+        echo "duration=${DURATION}" >> "$GITHUB_OUTPUT"
+```
+
+### Key YAML — caller workflow
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup, build & report
+        id: build
+        uses: ./.github/actions/setup-build    # ← step-level, not job-level!
+        with:
+          node-version: "20"
+
+      - name: Use the output
+        run: echo "Build took ${{ steps.build.outputs.build-time }}s"
+```
+
+### Reusable Workflow vs. Composite Action
+
+| | Reusable Workflow | Composite Action |
+|---|---|---|
+| Called at | **Job** level (`jobs: { x: { uses: } }`) | **Step** level (`steps: [{ uses: }]`) |
+| Gets its own runner | Yes | No (shares caller's job) |
+| Can contain jobs | Yes | No (steps only) |
+| Shares workspace | No (separate job) | Yes (same job, same filesystem) |
+| Where it lives | `.github/workflows/*.yml` | Any dir with `action.yml` |
+| Cross-repo | `owner/repo/.github/workflows/x.yml@ref` | `owner/repo/path@ref` |
+
+### What to demo live
+1. **Open `.github/actions/setup-build/action.yml`** — point out `runs: using: "composite"`. Explain: "This is NOT a workflow — it's an action. It bundles steps, not jobs."
+2. **Highlight `shell: bash`** on every `run:` step. Explain: "Unlike workflows, composite actions require an explicit shell. This is the #1 gotcha."
+3. **Open `demo6-composite-action.yml`** — show `uses: ./.github/actions/setup-build` at the step level. Contrast with Demo 1 where `uses:` was at the job level.
+4. **Go to Actions → "Demo 6: CI with Composite Action" → Run workflow.**
+5. **Expand the job logs** — show all the composite action's steps appear inline in the same job (no separate job created). Point out: "Same runner, same workspace, same job."
+6. **Show the output** — `steps.build.outputs.build-time` flows directly to subsequent steps without the three-level output chain needed for reusable workflows.
+7. **Key point:** "Use composite actions when you want to share *steps within a job*. Use reusable workflows when you want to share *entire jobs*."  
+
+### Key takeaway
+> Composite actions are step-level building blocks — they run inside the caller's job, share its workspace, and expose outputs directly to sibling steps. Use them for bundling related steps; use reusable workflows for encapsulating entire jobs.
+
+---
+
 ## Quick Reference
 
 | Concept | Where it's shown | Key syntax |
 |---|---|---|
 | `workflow_call` trigger | Demo 1 | `on: workflow_call:` |
 | `workflow_dispatch` | All callers | `on: workflow_dispatch:` |
-| Inputs | Demo 1, 2, 3, 4, 5 | `inputs: { name: { type: string } }` |
+| Inputs | Demo 1, 2, 3, 4, 5, 6 | `inputs: { name: { type: string } }` |
 | Outputs (step→job→workflow→caller) | Demo 2, 5 | `outputs:` at 3 levels |
 | Cross-repo reusable workflow | Demo 3 | `uses: owner/repo/.github/workflows/x.yml@main` |
 | Workflow templates (org-only) | Demo 3 | `workflow-templates/` + `.properties.json` |
@@ -405,7 +507,9 @@ Your CI pipeline reinstalls dependencies and rebuilds from scratch on every run 
 | Conditional execution | Demo 4, 5 | `if: ${{ !(inputs.skip-staging) }}` |
 | Dependency cache (built-in) | Demo 5 | `setup-node` with `cache: npm` |
 | Build output cache (manual) | Demo 5 | `actions/cache` with `hashFiles()` |
-| Step summary | Demo 5 | `$GITHUB_STEP_SUMMARY` |
+| Step summary | Demo 5, 6 | `$GITHUB_STEP_SUMMARY` |
+| Composite action | Demo 6 | `runs: using: "composite"` in `action.yml` |
+| Local action path | Demo 6 | `uses: ./.github/actions/<name>` |
 
 ## Setup Checklist (Before the Workshop)
 
@@ -414,5 +518,5 @@ Your CI pipeline reinstalls dependencies and rebuilds from scratch on every run 
 - [ ] For Demo 3 (org-only): add `workflow-templates/node-ci.yml` + `node-ci.properties.json` to `.github` repo
 - [ ] For Demo 4: configure GitHub environments (`dev`, `staging`, `production`) with `production` requiring a reviewer
 - [ ] For Demo 4: add repository secrets: `DEV_DEPLOY_TOKEN`, `STAGING_DEPLOY_TOKEN`, `PROD_DEPLOY_TOKEN` (values don't matter — use `dummy-token`)
-- [ ] Pre-run each demo once to verify everything works and warm up caches
+- [ ] Pre-run Demo 5 once to warm up caches (second run shows cache hit)
 - [ ] Have the Actions tab open in a browser, ready to click "Run workflow" per demo

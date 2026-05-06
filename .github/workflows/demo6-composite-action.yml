@@ -1,0 +1,47 @@
+####################################################################
+# Demo 6 — Caller: uses the composite action as a STEP
+# Compare with reusable workflows which are called at the JOB level.
+####################################################################
+name: "Demo 6: CI with Composite Action"
+
+on:
+  workflow_dispatch:
+    inputs:
+      node-version:
+        description: "Node.js version"
+        type: string
+        default: "20"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Use the composite action (step-level, not job-level!) ──
+      - name: Setup, build & report
+        id: build
+        uses: ./.github/actions/setup-build
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # ── Use the action's outputs in subsequent steps ──
+      - name: Summary
+        run: |
+          echo "## Build Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Node version | ${{ inputs.node-version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build time | ${{ steps.build.outputs.build-time }}s |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Output path | ${{ steps.build.outputs.artifact-path }} |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run tests
+        run: npm test
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build
+          path: ${{ steps.build.outputs.artifact-path }}

@@ -1,0 +1,57 @@
+####################################################################
+# Demo 6 — Composite action: reusable STEPS (not a whole job)
+# Lives in a local directory, called as a step with `uses: ./`
+####################################################################
+name: "Setup, Build & Report"
+description: "Composite action that sets up Node, installs deps, builds, and reports the result"
+
+inputs:
+  node-version:
+    description: "Node.js version to use"
+    required: false
+    default: "20"
+  build-script:
+    description: "npm script to run for the build"
+    required: false
+    default: "build"
+
+outputs:
+  build-time:
+    description: "How long the build took (seconds)"
+    value: ${{ steps.timer.outputs.duration }}
+  artifact-path:
+    description: "Path to the build output"
+    value: dist/
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install dependencies
+      shell: bash
+      run: npm install
+
+    - name: Build (timed)
+      id: timer
+      shell: bash
+      run: |
+        START=$(date +%s)
+        npm run ${{ inputs.build-script }}
+        END=$(date +%s)
+        DURATION=$((END - START))
+        echo "duration=${DURATION}" >> "$GITHUB_OUTPUT"
+        echo "⏱️ Build completed in ${DURATION}s"
+
+    - name: Verify output exists
+      shell: bash
+      run: |
+        if [ ! -d "dist" ]; then
+          echo "::error::Build output directory 'dist/' not found"
+          exit 1
+        fi
+        echo "📂 Build output:"
+        ls -la dist/
