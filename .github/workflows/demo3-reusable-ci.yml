@@ -1,0 +1,55 @@
+####################################################################
+# Demo 3 — Org-level reusable workflow (simulated locally)
+# In a real org, this would live in: <org>/.github/.github/workflows/
+####################################################################
+name: "Demo 3: Org Standard Node.js CI"
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js version"
+        required: false
+        type: string
+        default: "20"
+      working-directory:
+        description: "Subdirectory containing package.json"
+        required: false
+        type: string
+        default: "."
+      enable-coverage:
+        description: "Upload test coverage report"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Test
+        run: npm test
+
+      - name: Upload coverage
+        if: inputs.enable-coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ${{ inputs.working-directory }}/coverage/

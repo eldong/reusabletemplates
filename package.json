@@ -1,0 +1,10 @@
+{
+  "name": "reusable-workflows-workshop",
+  "version": "2.1.0",
+  "description": "Demo app for GitHub Actions reusable workflows workshop",
+  "scripts": {
+    "lint": "echo '✔ Linting passed'",
+    "test": "echo '✔ All tests passed'",
+    "build": "mkdir -p dist && echo '<h1>Workshop App v2.1.0</h1>' > dist/index.html && echo '✔ Build complete'"
+  }
+}

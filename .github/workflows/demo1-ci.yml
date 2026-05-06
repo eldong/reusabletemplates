@@ -1,0 +1,14 @@
+####################################################################
+# Demo 1 — Caller: triggers the reusable build workflow
+####################################################################
+name: "Demo 1: CI Pipeline"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  call-build:
+    uses: ./.github/workflows/demo1-reusable-build.yml
+    with:
+      node-version: "20"
+      run-lint: true

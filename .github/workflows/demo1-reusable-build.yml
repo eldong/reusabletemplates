@@ -1,0 +1,39 @@
+####################################################################
+# Demo 1 — Reusable workflow: build and test
+####################################################################
+name: "Demo 1: Reusable Build & Test"
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js version to use"
+        required: true
+        type: string
+      run-lint:
+        description: "Whether to run linting"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        if: inputs.run-lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test

@@ -1,0 +1,50 @@
+####################################################################
+# Demo 4 — Full pipeline: matrix build → dev → staging → production
+####################################################################
+name: "Demo 4: Build & Deploy Pipeline"
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip-staging:
+        description: "Skip staging and go straight to production"
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/demo4-reusable-build.yml
+    with:
+      node-versions: '["18", "20"]'
+
+  deploy-dev:
+    needs: build
+    uses: ./.github/workflows/demo4-reusable-deploy.yml
+    with:
+      environment: dev
+      artifact-name: ${{ needs.build.outputs.artifact-name }}
+      app-version: ${{ needs.build.outputs.app-version }}
+    secrets:
+      DEPLOY_TOKEN: ${{ secrets.DEV_DEPLOY_TOKEN }}
+
+  deploy-staging:
+    needs: [build, deploy-dev]
+    if: ${{ !(inputs.skip-staging) }}
+    uses: ./.github/workflows/demo4-reusable-deploy.yml
+    with:
+      environment: staging
+      artifact-name: ${{ needs.build.outputs.artifact-name }}
+      app-version: ${{ needs.build.outputs.app-version }}
+    secrets:
+      DEPLOY_TOKEN: ${{ secrets.STAGING_DEPLOY_TOKEN }}
+
+  deploy-production:
+    needs: [build, deploy-dev, deploy-staging]
+    if: always() && needs.deploy-dev.result == 'success'
+    uses: ./.github/workflows/demo4-reusable-deploy.yml
+    with:
+      environment: production
+      artifact-name: ${{ needs.build.outputs.artifact-name }}
+      app-version: ${{ needs.build.outputs.app-version }}
+    secrets:
+      DEPLOY_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}

@@ -1,0 +1,52 @@
+####################################################################
+# Demo 2 — Reusable workflow with OUTPUTS
+####################################################################
+name: "Demo 2: Reusable Build"
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: true
+        type: string
+    outputs:
+      artifact-name:
+        description: "Name of the uploaded build artifact"
+        value: ${{ jobs.build.outputs.artifact-name }}
+      app-version:
+        description: "Resolved application version"
+        value: ${{ jobs.build.outputs.app-version }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+      app-version: ${{ steps.meta.outputs.app-version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install & build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Capture metadata
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          ARTIFACT="app-build-${VERSION}-$(date +%s)"
+          echo "app-version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "artifact-name=${ARTIFACT}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact-name }}
+          path: dist/

@@ -1,0 +1,60 @@
+####################################################################
+# Demo 4 — Reusable matrix build across Node.js versions
+####################################################################
+name: "Demo 4: Reusable Matrix Build"
+
+on:
+  workflow_call:
+    inputs:
+      node-versions:
+        description: 'JSON array of Node.js versions, e.g. ["18","20"]'
+        required: false
+        type: string
+        default: '["20"]'
+    outputs:
+      artifact-name:
+        description: "Primary build artifact name"
+        value: ${{ jobs.build.outputs.artifact-name }}
+      app-version:
+        description: "Application version"
+        value: ${{ jobs.build.outputs.app-version }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+      app-version: ${{ steps.meta.outputs.app-version }}
+    strategy:
+      matrix:
+        node-version: ${{ fromJson(inputs.node-versions) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install & build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run tests
+        run: npm test
+
+      - name: Capture metadata
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          ARTIFACT="app-build-node${{ matrix.node-version }}-${VERSION}"
+          echo "app-version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "artifact-name=${ARTIFACT}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact-name }}
+          path: dist/

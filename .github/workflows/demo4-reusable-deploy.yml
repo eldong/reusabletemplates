@@ -1,0 +1,54 @@
+####################################################################
+# Demo 4 — Reusable deploy to any environment
+####################################################################
+name: "Demo 4: Reusable Deploy"
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Target environment (dev, staging, production)"
+        required: true
+        type: string
+      artifact-name:
+        description: "Name of the build artifact to deploy"
+        required: true
+        type: string
+      app-version:
+        description: "Application version being deployed"
+        required: true
+        type: string
+      dry-run:
+        description: "Simulate deployment without applying changes"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      DEPLOY_TOKEN:
+        description: "Deployment credential"
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: "https://${{ inputs.environment }}.example.com"
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./dist
+
+      - name: Deploy to ${{ inputs.environment }}
+        run: |
+          MODE=${{ inputs.dry-run && 'DRY-RUN' || 'LIVE' }}
+          echo "[$MODE] Deploying v${{ inputs.app-version }} → ${{ inputs.environment }}"
+          echo "  Artifact: ${{ inputs.artifact-name }}"
+          echo "  Token:    ${#DEPLOY_TOKEN} chars (masked)"
+          echo "  Files:"
+          ls -la ./dist
+          echo "✔ Deployment to ${{ inputs.environment }} complete"
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}

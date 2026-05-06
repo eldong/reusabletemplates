@@ -1,0 +1,31 @@
+####################################################################
+# Demo 2 — Caller: build → then use outputs in deploy-preview job
+####################################################################
+name: "Demo 2: CI / CD Pipeline"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/demo2-reusable-build.yml
+    with:
+      node-version: "20"
+
+  deploy-preview:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: ./dist
+
+      - name: Deploy preview
+        run: |
+          echo "🚀 Deploying version ${{ needs.build.outputs.app-version }}"
+          echo "   Artifact: ${{ needs.build.outputs.artifact-name }}"
+          echo "   Contents:"
+          ls -la ./dist
+          echo "✔ Preview deployment complete"
