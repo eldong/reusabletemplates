@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    uses: ./.github/workflows/demo1-reusable-build.yml
+    uses: ./.github/workflows/demo2-reusable-build.yml
     with:
       node-version: "20"
 
