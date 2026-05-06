@@ -1,0 +1,35 @@
+####################################################################
+# Demo 5 — Caller: demonstrates cache hits on second run
+# Run this twice to see the difference!
+####################################################################
+name: "Demo 5: CI with Caching"
+
+on:
+  workflow_dispatch:
+    inputs:
+      cache-build:
+        description: "Enable build output caching"
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/demo5-reusable-build-cached.yml
+    with:
+      node-version: "20"
+      cache-build: ${{ inputs.cache-build }}
+
+  report:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache summary
+        run: |
+          echo "## Cache Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Cache | Hit? |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| npm dependencies | ${{ needs.build.outputs.cache-hit-deps || '❌ miss' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build output | ${{ needs.build.outputs.cache-hit-build || '❌ miss' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "💡 Run again to see cache hits!" >> "$GITHUB_STEP_SUMMARY"

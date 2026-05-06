@@ -1,7 +1,7 @@
 # GitHub Actions Reusable Workflows — Workshop Guide
 
 > **Audience:** Developers with basic GitHub Actions knowledge but limited experience with reusable workflows.
-> **Format:** 4 progressive demos, each building on the previous.
+> **Format:** 5 progressive demos in a single repo, all triggered on-demand via `workflow_dispatch`.
 
 ---
 
@@ -17,14 +17,12 @@ Your team has 5 Node.js repos that all copy-paste the same CI steps. When you ne
 
 ### File structure
 ```
-demo1-basic-reusable/
-├── .github/workflows/
-│   ├── reusable-build.yml   ← the reusable workflow (workflow_call)
-│   └── ci.yml               ← the caller workflow
-└── package.json
+.github/workflows/
+├── demo1-reusable-build.yml   ← the reusable workflow (workflow_call)
+└── demo1-ci.yml               ← the caller workflow
 ```
 
-### Key YAML — `reusable-build.yml`
+### Key YAML — `demo1-reusable-build.yml`
 ```yaml
 on:
   workflow_call:          # ← this is what makes it reusable
@@ -38,22 +36,25 @@ on:
         default: true
 ```
 
-### Key YAML — `ci.yml` (caller)
+### Key YAML — `demo1-ci.yml` (caller)
 ```yaml
+on:
+  workflow_dispatch:      # ← manual trigger only
+
 jobs:
   call-build:
-    uses: ./.github/workflows/reusable-build.yml   # ← job-level uses
+    uses: ./.github/workflows/demo1-reusable-build.yml   # ← job-level uses
     with:
       node-version: "20"
       run-lint: true
 ```
 
 ### What to demo live
-1. **Open `reusable-build.yml`** — point out `workflow_call` and the `inputs:` block. Explain: "This is just a normal workflow, but the trigger is `workflow_call` instead of `push`."
-2. **Open `ci.yml`** — show `uses:` at the job level. Emphasize: "Notice this is NOT a step — it's a whole job pointing to another workflow file."
-3. **Push a commit** and open the Actions tab. Show the run — the caller workflow appears, and the reusable workflow runs nested inside it.
+1. **Open `demo1-reusable-build.yml`** — point out `workflow_call` and the `inputs:` block. Explain: "This is just a normal workflow, but the trigger is `workflow_call` instead of `push`."
+2. **Open `demo1-ci.yml`** — show `uses:` at the job level. Emphasize: "Notice this is NOT a step — it's a whole job pointing to another workflow file."
+3. **Go to Actions → "Demo 1: CI Pipeline" → Run workflow.** Show the run — the caller workflow appears, and the reusable workflow runs nested inside it.
 4. **Show the logs** — expand the reusable workflow's steps. Point out inputs flowing through.
-5. **Live edit:** Change `run-lint: false` in `ci.yml`, push, show the lint step is skipped.
+5. **Live edit:** Change `run-lint: false` in `demo1-ci.yml`, push, run again, show the lint step is skipped.
 
 ### Key takeaway
 > A reusable workflow is triggered by `workflow_call` and called with `uses:` at the job level. Inputs let you parameterize the behavior — one workflow, many consumers.
@@ -73,16 +74,14 @@ You've extracted your build into a reusable workflow. Now you need downstream jo
 
 ### File structure
 ```
-demo2-outputs/
-├── .github/workflows/
-│   ├── reusable-build.yml   ← returns artifact-name + app-version
-│   └── ci-cd.yml            ← consumes outputs in deploy-preview job
-└── package.json
+.github/workflows/
+├── demo2-reusable-build.yml   ← returns artifact-name + app-version
+└── demo2-ci-cd.yml            ← consumes outputs in deploy-preview job
 ```
 
 ### Key YAML — outputs chain
 ```yaml
-# In reusable-build.yml:
+# In demo2-reusable-build.yml:
 on:
   workflow_call:
     outputs:
@@ -101,10 +100,10 @@ jobs:
 ```
 
 ```yaml
-# In ci-cd.yml (caller):
+# In demo2-ci-cd.yml (caller):
 jobs:
   build:
-    uses: ./.github/workflows/reusable-build.yml
+    uses: ./.github/workflows/demo2-reusable-build.yml
 
   deploy-preview:
     needs: build
@@ -114,9 +113,9 @@ jobs:
 
 ### What to demo live
 1. **Draw the output chain on a whiteboard** (or slide): `step → job → workflow → caller`. This is the #1 confusion point — spend time here.
-2. **Open `reusable-build.yml`** — trace the output from `steps.meta` → `jobs.build.outputs` → `workflow_call.outputs`.
-3. **Open `ci-cd.yml`** — show `needs.build.outputs.artifact-name` in the deploy job. Explain: "The caller sees the reusable workflow's outputs on the job it called."
-4. **Push and run.** In the Actions tab, click the deploy-preview job and show the echoed artifact name and version.
+2. **Open `demo2-reusable-build.yml`** — trace the output from `steps.meta` → `jobs.build.outputs` → `workflow_call.outputs`.
+3. **Open `demo2-ci-cd.yml`** — show `needs.build.outputs.artifact-name` in the deploy job. Explain: "The caller sees the reusable workflow's outputs on the job it called — using the job name from the *caller*, not the reusable workflow."
+4. **Go to Actions → "Demo 2: CI / CD Pipeline" → Run workflow.** Click the deploy-preview job and show the echoed artifact name and version.
 5. **Show the artifact** in the Actions run summary — it was uploaded by the reusable workflow and downloaded by the caller.
 
 ### Key takeaway
@@ -136,20 +135,40 @@ Your org has 50 Node.js repos. You want every team to use the same CI pipeline �
 - Standardization and governance across an organization
 
 ### File structure
+
+The reusable workflow lives in a **separate repo** (`eldong/.github`). The caller stays in this repo.
+
 ```
-my-org/.github/                         ← the special .github repo
+eldong/.github (separate repo)            ← central shared repo
 ├── .github/workflows/
-│   └── node-ci.yml                     ← reusable workflow (shared logic)
-└── workflow-templates/
-    ├── node-ci.yml                     ← template (starter file for new repos)
-    └── node-ci.properties.json         ← metadata (name, icon, categories)
+│   └── demo3-reusable-ci.yml             ← reusable workflow (shared logic)
+└── workflow-templates/                   ← org-only feature (requires GitHub org)
+    ├── node-ci.yml                       ← template starter file
+    └── node-ci.properties.json           ← metadata for the picker
 
-my-org/team-service/                    ← any consumer repo
-└── .github/workflows/
-    └── ci.yml                          ← 6-line file calling the org workflow
+this repo:
+.github/workflows/
+├── demo3-ci.yml                          ← caller (cross-repo reference)
+└── demo3-reusable-ci.yml                 ← local copy for reference
 ```
 
-### Key YAML — workflow template
+> **Note:** Workflow templates (the "New workflow" picker) require a **GitHub Organization**. Under a personal account, only the cross-repo reusable workflow call works.
+
+### Key YAML — cross-repo call
+```yaml
+# demo3-ci.yml — calls the reusable workflow from a different repo
+on:
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: eldong/.github/.github/workflows/demo3-reusable-ci.yml@main
+    with:
+      node-version: "20"
+      enable-coverage: true
+```
+
+### Key YAML — workflow template (org-only)
 ```yaml
 # workflow-templates/node-ci.yml — what new repos get when they click "Use this template"
 name: Standard Node.js CI
@@ -159,7 +178,7 @@ on:
 
 jobs:
   ci:
-    uses: my-org/.github/.github/workflows/node-ci.yml@main
+    uses: eldong/.github/.github/workflows/demo3-reusable-ci.yml@main
     with:
       node-version: "20"
 ```
@@ -168,31 +187,21 @@ jobs:
 // workflow-templates/node-ci.properties.json
 {
   "name": "Standard Node.js CI",
-  "description": "Org-standard CI pipeline for Node.js projects.",
+  "description": "Org-standard CI for Node.js — calls the shared reusable workflow.",
   "categories": ["Node.js", "CI"]
 }
 ```
 
-### Key YAML — consumer repo
-```yaml
-# team-service/.github/workflows/ci.yml — the ENTIRE CI config for a team
-jobs:
-  ci:
-    uses: my-org/.github/.github/workflows/node-ci.yml@main
-    with:
-      node-version: "20"
-      enable-coverage: true
-```
-
 ### What to demo live
-1. **Show the `.github` repo** in the org — explain its special role (profile, reusable workflows, templates).
-2. **Open `node-ci.yml` (reusable)** — show how it's a complete, production-quality CI with sensible defaults and optional inputs like `enable-coverage`.
-3. **Open the workflow template** — show the `$default-branch` variable and the `.properties.json` file. Explain: "This is what appears in the Actions tab when a team clicks 'New workflow'."
-4. **Switch to the consumer repo** — show the 6-line `ci.yml`. Say: "This is ALL a team needs to write. Everything else is inherited."
-5. **Highlight the governance angle:** "If we need to update the linting tool, we change `node-ci.yml` in the `.github` repo. All 50 repos get the update on their next run — zero PRs needed."
+1. **Show the `eldong/.github` repo** — explain its special role (central reusable workflows, templates).
+2. **Open `demo3-reusable-ci.yml`** — show how it's a complete, production-quality CI with sensible defaults and optional inputs like `enable-coverage`.
+3. **Switch to this repo and open `demo3-ci.yml`** — show the cross-repo `uses:` reference. Say: "This is ALL a consuming repo needs — everything else is inherited from the central repo."
+4. **Go to Actions → "Demo 3: CI (org consumer)" → Run workflow.** Show the reusable workflow running from the other repo.
+5. **Highlight the governance angle:** "If we update the linting tool, we change one file in the `.github` repo. All consuming repos get the update on their next run — zero PRs needed."
+6. *(Optional, if using a GitHub org)* **Show the workflow template picker** — go to another repo in the org → Actions → "New workflow" and point out the template.
 
 ### Key takeaway
-> The `.github` repo is your org's control plane for CI/CD. Reusable workflows provide shared logic; workflow templates make them discoverable. Teams write 6 lines — you maintain the standard.
+> A central repo (typically `.github`) is your org's control plane for CI/CD. Any repo can call its reusable workflows cross-repo. With a GitHub org, workflow templates make them discoverable in the UI. Consuming repos write a few lines — you maintain the standard.
 
 ---
 
@@ -211,12 +220,10 @@ You're shipping to production. The pipeline needs to: build across multiple Node
 
 ### File structure
 ```
-demo4-advanced/
-├── .github/workflows/
-│   ├── reusable-build.yml    ← matrix build across Node versions
-│   ├── reusable-deploy.yml   ← deploy to any environment (parameterized)
-│   └── pipeline.yml          ← orchestrator: build → dev → staging → prod
-└── package.json
+.github/workflows/
+├── demo4-reusable-build.yml    ← matrix build across Node versions
+├── demo4-reusable-deploy.yml   ← deploy to any environment (parameterized)
+└── demo4-pipeline.yml          ← orchestrator: build → dev → staging → prod
 ```
 
 ### Key YAML — matrix input
@@ -304,15 +311,81 @@ jobs:
 ```
 
 ### What to demo live
-1. **Show the pipeline graph** — push to `main` and open the Actions tab. Point out the visual DAG: build → dev → staging → production.
+1. **Go to Actions → "Demo 4: Build & Deploy Pipeline" → Run workflow.** Point out the visual DAG: build → dev → staging → production.
 2. **Expand the build job** — show the matrix running Node 18 and 20 in parallel. Explain `fromJson()` converting the string input into a real matrix.
-3. **Show secrets handling** — open `reusable-deploy.yml` and point to the `secrets:` block. Explain: "Each environment gets its own secret. The caller passes the right one for each stage."
+3. **Show secrets handling** — open `demo4-reusable-deploy.yml` and point to the `secrets:` block. Explain: "Each environment gets its own secret. The caller passes the right one for each stage."
 4. **Show the production approval** — the pipeline pauses at `deploy-production` because the `production` environment has a required reviewer. Click "Review deployments" to approve live.
-5. **Demo `workflow_dispatch`** — go to Actions → "Run workflow" → check "skip-staging". Show how the staging job gets a "skipped" status.
+5. **Run again with "skip-staging" checked** — show how the staging job gets a "skipped" status.
 6. **Zoom out:** "We have 3 YAML files, 0 duplication, and a full build→deploy pipeline with matrix, secrets, and approval gates."
 
 ### Key takeaway
 > Reusable workflows compose like building blocks. Combine matrix builds, per-environment secrets, protection rules, and conditional logic to create production-grade pipelines with minimal YAML per repo.
+
+---
+
+## Demo 5 — Dependency & Build Caching
+
+### Scenario
+Your CI pipeline reinstalls dependencies and rebuilds from scratch on every run — even when nothing changed. This wastes time and runner minutes. Let's add **caching** to the reusable workflow to skip redundant work.
+
+### Concepts demonstrated
+- **Built-in cache** via `setup-node` with `cache: npm` (one-line dependency caching)
+- **Manual cache** via `actions/cache` for build output (`dist/`)
+- **Cache keys** using `hashFiles()` to invalidate when dependencies change
+- **Conditional step execution** — skip `npm run build` when cache hits
+- **`$GITHUB_STEP_SUMMARY`** — writing a cache report to the run summary
+
+### File structure
+```
+.github/workflows/
+├── demo5-reusable-build-cached.yml   ← reusable workflow with two cache strategies
+└── demo5-ci-cached.yml               ← caller with cache report
+```
+
+### Key YAML — built-in dependency cache
+```yaml
+- name: Setup Node.js (with npm cache)
+  uses: actions/setup-node@v4
+  with:
+    node-version: ${{ inputs.node-version }}
+    cache: npm                              # ← one line, done
+```
+
+### Key YAML — manual build output cache
+```yaml
+- name: Cache build output
+  id: build-cache
+  uses: actions/cache@v4
+  with:
+    path: dist/
+    key: build-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json') }}
+
+- name: Build (skip if cached)
+  if: steps.build-cache.outputs.cache-hit != 'true'    # ← conditional!
+  run: npm run build
+```
+
+### Key YAML — cache report in step summary
+```yaml
+- name: Cache summary
+  run: |
+    echo "## Cache Report" >> "$GITHUB_STEP_SUMMARY"
+    echo "| Cache | Hit? |" >> "$GITHUB_STEP_SUMMARY"
+    echo "|-------|------|" >> "$GITHUB_STEP_SUMMARY"
+    echo "| npm dependencies | ${{ needs.build.outputs.cache-hit-deps }} |" >> "$GITHUB_STEP_SUMMARY"
+    echo "| Build output | ${{ needs.build.outputs.cache-hit-build }} |" >> "$GITHUB_STEP_SUMMARY"
+```
+
+### What to demo live
+1. **Go to Actions → "Demo 5: CI with Caching" → Run workflow.** First run — both caches miss. Note the run time.
+2. **Run it again immediately** (no code changes). Both caches hit — the build step is skipped entirely. Compare the run times.
+3. **Click the run summary** — show the cache report table written via `$GITHUB_STEP_SUMMARY`.
+4. **Open `demo5-reusable-build-cached.yml`** — point out the two strategies: one-line `cache: npm` vs. explicit `actions/cache` with `hashFiles()`.
+5. **Run again with "Enable build output caching" unchecked** — show the build runs again even though deps are cached.
+6. **Key point:** "Caching inputs you pass to `actions/cache` via `key:` — when the key changes (e.g., new dependencies), the cache misses and rebuilds automatically."
+
+### Key takeaway
+> Use `setup-node`'s built-in `cache` for dependencies (one line). Use `actions/cache` with `hashFiles()` for custom outputs like build artifacts. Conditional steps (`if: cache-hit != 'true'`) let you skip expensive work entirely.
 
 ---
 
@@ -321,21 +394,25 @@ jobs:
 | Concept | Where it's shown | Key syntax |
 |---|---|---|
 | `workflow_call` trigger | Demo 1 | `on: workflow_call:` |
-| Inputs | Demo 1, 2, 3, 4 | `inputs: { name: { type: string } }` |
-| Outputs (step→job→workflow→caller) | Demo 2 | `outputs:` at 3 levels |
-| Org `.github` repo | Demo 3 | `uses: org/.github/.github/workflows/x.yml@main` |
-| Workflow templates | Demo 3 | `workflow-templates/` + `.properties.json` |
+| `workflow_dispatch` | All callers | `on: workflow_dispatch:` |
+| Inputs | Demo 1, 2, 3, 4, 5 | `inputs: { name: { type: string } }` |
+| Outputs (step→job→workflow→caller) | Demo 2, 5 | `outputs:` at 3 levels |
+| Cross-repo reusable workflow | Demo 3 | `uses: owner/repo/.github/workflows/x.yml@main` |
+| Workflow templates (org-only) | Demo 3 | `workflow-templates/` + `.properties.json` |
 | Matrix via input | Demo 4 | `fromJson(inputs.node-versions)` |
 | Secrets passing | Demo 4 | `secrets: { DEPLOY_TOKEN: ... }` |
 | Environment gates | Demo 4 | `environment: { name: production }` |
-| Conditional execution | Demo 4 | `if: ${{ !(inputs.skip-staging) }}` |
-| `workflow_dispatch` | Demo 4 | Manual trigger with typed inputs |
+| Conditional execution | Demo 4, 5 | `if: ${{ !(inputs.skip-staging) }}` |
+| Dependency cache (built-in) | Demo 5 | `setup-node` with `cache: npm` |
+| Build output cache (manual) | Demo 5 | `actions/cache` with `hashFiles()` |
+| Step summary | Demo 5 | `$GITHUB_STEP_SUMMARY` |
 
 ## Setup Checklist (Before the Workshop)
 
-- [ ] Create 4 repos (or branches) — one per demo
-- [ ] For Demo 3: create an org-level `.github` repo with the reusable workflow and template
+- [ ] Push all workflow files to the `master` branch of `eldong/reusabletemplates`
+- [ ] For Demo 3: push `demo3-reusable-ci.yml` to `eldong/.github` repo at `.github/workflows/`
+- [ ] For Demo 3 (org-only): add `workflow-templates/node-ci.yml` + `node-ci.properties.json` to `.github` repo
 - [ ] For Demo 4: configure GitHub environments (`dev`, `staging`, `production`) with `production` requiring a reviewer
 - [ ] For Demo 4: add repository secrets: `DEV_DEPLOY_TOKEN`, `STAGING_DEPLOY_TOKEN`, `PROD_DEPLOY_TOKEN` (values don't matter — use `dummy-token`)
-- [ ] Pre-run each demo once to verify everything works and cache dependencies
-- [ ] Have the Actions tab open in a browser tab per demo for quick switching
+- [ ] Pre-run each demo once to verify everything works and warm up caches
+- [ ] Have the Actions tab open in a browser, ready to click "Run workflow" per demo

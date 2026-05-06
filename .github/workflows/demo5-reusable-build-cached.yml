@@ -1,0 +1,75 @@
+####################################################################
+# Demo 5 — Reusable workflow with dependency caching
+# Shows two caching strategies:
+#   1. Built-in setup-node cache (simple)
+#   2. Manual actions/cache for build output (advanced)
+####################################################################
+name: "Demo 5: Reusable Build with Cache"
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js version"
+        required: false
+        type: string
+        default: "20"
+      cache-build:
+        description: "Cache the build output (dist/) between runs"
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      cache-hit-deps:
+        description: "Whether npm dependency cache was hit"
+        value: ${{ jobs.build.outputs.cache-hit-deps }}
+      cache-hit-build:
+        description: "Whether build output cache was hit"
+        value: ${{ jobs.build.outputs.cache-hit-build }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      cache-hit-deps: ${{ steps.deps-cache.outputs.cache-hit }}
+      cache-hit-build: ${{ steps.build-cache.outputs.cache-hit }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Strategy 1: built-in cache via setup-node ──────────
+      - name: Setup Node.js (with npm cache)
+        id: deps-cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      # ── Strategy 2: manual cache for build output ──────────
+      - name: Cache build output
+        if: inputs.cache-build
+        id: build-cache
+        uses: actions/cache@v4
+        with:
+          path: dist/
+          key: build-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json') }}
+
+      - name: Build (skip if cached)
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Show cache results
+        run: |
+          echo "📦 Dependency cache hit: ${{ steps.deps-cache.outputs.cache-hit || 'false' }}"
+          echo "🏗️ Build cache hit:      ${{ steps.build-cache.outputs.cache-hit || 'false' }}"
+          echo "📂 Build output:"
+          ls -la dist/

@@ -1,0 +1,5 @@
+{
+  "name": "Standard Node.js CI",
+  "description": "Org-standard CI for Node.js — calls the shared reusable workflow.",
+  "categories": ["Node.js", "CI"]
+}
