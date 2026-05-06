@@ -10,7 +10,7 @@ on:
 
 jobs:
   ci:
-    uses: ./.github/workflows/demo3-reusable-ci.yml
+    uses: eldong/.github/.github/workflows/demo3-reusable-ci.yml@main
     with:
       node-version: "20"
       enable-coverage: true
