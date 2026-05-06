@@ -34,7 +34,7 @@ jobs:
 
       - name: Install & build
         run: |
-          npm ci
+          npm install
           npm run build
 
       - name: Capture metadata
