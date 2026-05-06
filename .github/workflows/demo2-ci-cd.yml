@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    uses: ./.github/workflows/demo2-reusable-build.yml
+    uses: eldong/.github/.github/workflows/demo3-reusable-ci.yml@main
     with:
       node-version: "20"
 
