@@ -26,11 +26,21 @@ jobs:
           app-name: ${{ inputs.app-name }}
           include-git-info: "true"
 
-      # ── Use the action's outputs ───────────────────────────
+      # ── Use the action's outputs in the build ─────────────
       - name: Build the app
         run: |
           npm install
           npm run build
+          echo "<!-- build-id: ${{ steps.info.outputs.build-id }} -->" >> dist/index.html
+          echo "<!-- commit: ${{ steps.info.outputs.short-sha }} -->" >> dist/index.html
+          echo "<!-- branch: ${{ steps.info.outputs.branch }} -->" >> dist/index.html
+          echo "✔ Stamped artifact with build metadata"
+
+      - name: Verify build metadata
+        run: |
+          echo "── dist/index.html ──"
+          cat dist/index.html
+          grep -q "${{ steps.info.outputs.build-id }}" dist/index.html && echo "✔ Build ID found in artifact"
 
       - name: Summary
         run: |
