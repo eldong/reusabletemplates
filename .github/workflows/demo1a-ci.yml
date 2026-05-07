@@ -1,0 +1,14 @@
+####################################################################
+# Demo 1a — Caller: same as Demo 1, but pinned to a tagged version
+####################################################################
+name: "Demo 1a: CI Pipeline (tagged)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  call-build:
+    uses: eldong/reusabletemplates/.github/workflows/demo1-reusable-build.yml@v1.0.0
+    with:
+      node-version: "20"
+      run-lint: true
