@@ -1,0 +1,45 @@
+####################################################################
+# Demo 7 — Caller: uses the Docker-based action
+####################################################################
+name: "Demo 7: CI with Docker Action"
+
+on:
+  workflow_dispatch:
+    inputs:
+      app-name:
+        description: "Application name for the build report"
+        type: string
+        default: "my-app"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Use the Docker action ──────────────────────────────
+      - name: Gather build info
+        id: info
+        uses: ./.github/actions/build-info
+        with:
+          app-name: ${{ inputs.app-name }}
+          include-git-info: "true"
+
+      # ── Use the action's outputs ───────────────────────────
+      - name: Build the app
+        run: |
+          npm install
+          npm run build
+
+      - name: Summary
+        run: |
+          echo "## Build Info" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| App | ${{ inputs.app-name }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build ID | ${{ steps.info.outputs.build-id }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | ${{ steps.info.outputs.short-sha }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Branch | ${{ steps.info.outputs.branch }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Report | ${{ steps.info.outputs.report }} |" >> "$GITHUB_STEP_SUMMARY"

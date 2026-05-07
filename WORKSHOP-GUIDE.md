@@ -1,7 +1,7 @@
 # GitHub Actions Reusable Workflows — Workshop Guide
 
 > **Audience:** Developers with basic GitHub Actions knowledge but limited experience with reusable workflows.
-> **Format:** 6 progressive demos in a single repo, all triggered on-demand via `workflow_dispatch`.
+> **Format:** 7 progressive demos in a single repo, all triggered on-demand via `workflow_dispatch`.
 
 ---
 
@@ -484,10 +484,107 @@ jobs:
 4. **Go to Actions → "Demo 6: CI with Composite Action" → Run workflow.**
 5. **Expand the job logs** — show all the composite action's steps appear inline in the same job (no separate job created). Point out: "Same runner, same workspace, same job."
 6. **Show the output** — `steps.build.outputs.build-time` flows directly to subsequent steps without the three-level output chain needed for reusable workflows.
-7. **Key point:** "Use composite actions when you want to share *steps within a job*. Use reusable workflows when you want to share *entire jobs*."  
+7. **Show the comparison table** — put this on a slide or whiteboard:
+
+   | | Composite Action | Reusable Workflow |
+   |---|---|---|
+   | Called with | `uses:` in a **step** | `uses:` in a **job** |
+   | Shares filesystem with caller | Yes | No |
+   | Can access caller's env vars | Yes | No (must pass via inputs) |
+   | Can contain multiple jobs | No | Yes |
+   | Outputs go to | `steps.<id>.outputs` (direct) | `needs.<job>.outputs` (three-level chain) |
+   | Can use `secrets:` block | No (use inputs) | Yes |
+   | Can use `environment:` | No | Yes |
+
+   **Rule of thumb:** If you'd copy-paste *steps*, make a composite action. If you'd copy-paste *entire jobs* (especially ones needing their own runner, environment, or secrets), make a reusable workflow.
+
+8. **Key point:** "Use composite actions when you want to share *steps within a job*. Use reusable workflows when you want to share *entire jobs*."
 
 ### Key takeaway
 > Composite actions are step-level building blocks — they run inside the caller's job, share its workspace, and expose outputs directly to sibling steps. Use them for bundling related steps; use reusable workflows for encapsulating entire jobs.
+
+---
+
+## Demo 7 — Docker Action (Container-Based Reuse)
+
+### Scenario
+You need an action that runs in a specific, controlled environment — maybe a particular OS image, pre-installed tools, or a language your runners don't have. A composite action runs on the host runner, but a **Docker action** runs inside a container you define.
+
+### Concepts demonstrated
+- **Docker actions** (`using: "docker"`) — container-based actions built from a Dockerfile
+- The `action.yml → Dockerfile → entrypoint.sh` chain
+- Passing inputs as **positional arguments** (`args:` → `$1`, `$2`)
+- Setting outputs from inside a container via `$GITHUB_OUTPUT`
+- Trade-off: full environment control vs. Linux-only and slower startup
+
+### File structure
+```
+.github/
+├── actions/
+│   └── build-info/
+│       ├── action.yml         ← using: "docker"
+│       ├── Dockerfile         ← Alpine container with git + bash
+│       └── entrypoint.sh      ← script that gathers build metadata
+└── workflows/
+    └── demo7-docker-action.yml  ← caller workflow
+```
+
+### Key YAML — Docker action (`action.yml`)
+```yaml
+runs:
+  using: "docker"              # ← container-based action
+  image: "Dockerfile"          # ← GitHub builds this image at runtime
+  args:                        # ← inputs become positional args
+    - ${{ inputs.app-name }}   # → $1 in entrypoint.sh
+    - ${{ inputs.include-git-info }}  # → $2
+```
+
+### Key file — `Dockerfile`
+```dockerfile
+FROM alpine:3.20
+RUN apk add --no-cache git bash
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+```
+
+### Key file — `entrypoint.sh`
+```bash
+#!/bin/bash
+APP_NAME="$1"          # ← from args in action.yml
+INCLUDE_GIT="$2"
+
+SHORT_SHA=$(git rev-parse --short HEAD)
+BUILD_ID="${APP_NAME}-$(date +%Y%m%d-%H%M%S)"
+
+echo "short-sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+echo "build-id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
+```
+
+### All three action types compared
+
+| | Composite (`Demo 6`) | Docker (`Demo 7`) | JavaScript |
+|---|---|---|---|
+| `using:` | `"composite"` | `"docker"` | `"node20"` |
+| Runs on | Host runner | Container on runner | Host runner (Node.js) |
+| Runner OS | Any | **Linux only** | Any |
+| Startup speed | Fast | Slower (image build) | Fast |
+| Custom environment | No (host tools) | Yes (full Dockerfile) | No (Node.js only) |
+| Logic defined in | Steps in `action.yml` | `entrypoint.sh` / any script | JavaScript (`index.js`) |
+| Inputs passed via | `${{ inputs.x }}` in YAML | Positional args (`$1`, `$2`) | `@actions/core` API |
+
+### What to demo live
+1. **Open the three files** — `action.yml` → `Dockerfile` → `entrypoint.sh`. Explain: "A Docker action is a pipeline: YAML defines the interface, Dockerfile builds the environment, entrypoint runs the logic."
+2. **Point out `using: "docker"` and `image: "Dockerfile"`** — "GitHub builds this container image fresh on every run. You can also point to a pre-built image on Docker Hub."
+3. **Show `args:`** — explain how inputs map to positional arguments `$1`, `$2` in the entrypoint script. Contrast with composite actions where you use `${{ inputs.x }}` directly.
+4. **Go to Actions → "Demo 7: CI with Docker Action" → Run workflow.**
+5. **Expand the logs** — show the Docker image build step (you'll see `docker build` output). Point out: "This is why Docker actions are slower — the image builds every run unless cached."
+6. **Show the outputs** — `steps.info.outputs.short-sha` and `build-id` flow out of the container just like composite action outputs.
+7. **Show the step summary** — build info table rendered in the run summary.
+8. **Key point:** "Docker actions give you total control over the runtime, but they only work on Linux runners and are slower. Use them when you need a specific OS image or tool not available on the runner."
+
+### Key takeaway
+> Docker actions trade speed for environment control. Use them when you need a custom runtime (specific OS, pre-installed tools, non-standard languages). For everything else, composite actions are simpler and faster.
 
 ---
 
@@ -509,7 +606,9 @@ jobs:
 | Build output cache (manual) | Demo 5 | `actions/cache` with `hashFiles()` |
 | Step summary | Demo 5, 6 | `$GITHUB_STEP_SUMMARY` |
 | Composite action | Demo 6 | `runs: using: "composite"` in `action.yml` |
-| Local action path | Demo 6 | `uses: ./.github/actions/<name>` |
+| Docker action | Demo 7 | `runs: using: "docker"` + `image: "Dockerfile"` |
+| Local action path | Demo 6, 7 | `uses: ./.github/actions/<name>` |
+| Action args (Docker) | Demo 7 | `args:` → positional `$1`, `$2` in entrypoint |
 
 ## Setup Checklist (Before the Workshop)
 
@@ -519,4 +618,5 @@ jobs:
 - [ ] For Demo 4: configure GitHub environments (`dev`, `staging`, `production`) with `production` requiring a reviewer
 - [ ] For Demo 4: add repository secrets: `DEV_DEPLOY_TOKEN`, `STAGING_DEPLOY_TOKEN`, `PROD_DEPLOY_TOKEN` (values don't matter — use `dummy-token`)
 - [ ] Pre-run Demo 5 once to warm up caches (second run shows cache hit)
+- [ ] Pre-run Demo 7 once so the Docker image build time doesn't surprise you
 - [ ] Have the Actions tab open in a browser, ready to click "Run workflow" per demo

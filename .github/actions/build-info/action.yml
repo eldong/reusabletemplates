@@ -1,0 +1,32 @@
+####################################################################
+# Demo 7 — Docker action: custom container-based action
+# Runs a script inside a Docker container built from a Dockerfile.
+####################################################################
+name: "Build Info Reporter"
+description: "Gathers build metadata (git info, env details) and outputs a summary"
+
+inputs:
+  app-name:
+    description: "Name of the application"
+    required: true
+  include-git-info:
+    description: "Include git commit details in the report"
+    required: false
+    default: "true"
+
+outputs:
+  short-sha:
+    description: "Short git commit SHA"
+  branch:
+    description: "Current git branch"
+  build-id:
+    description: "Unique build identifier"
+  report:
+    description: "Full build info report (multiline)"
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - ${{ inputs.app-name }}
+    - ${{ inputs.include-git-info }}
