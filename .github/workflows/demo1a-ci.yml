@@ -8,7 +8,7 @@ on:
 
 jobs:
   call-build:
-    uses: eldong/reusabletemplates/.github/workflows/demo1-reusable-build.yml@v1.0.0
+    uses: eldong/reusabletemplates/.github/workflows/demo1-reusable-build.yml@v2.0.0
     with:
       node-version: "20"
       run-lint: true
